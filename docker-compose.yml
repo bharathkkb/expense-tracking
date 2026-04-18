@@ -6,6 +6,14 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+          ignore:
+            - __pycache__/
 
   frontend:
     build:
@@ -17,3 +25,7 @@ services:
       - PORT=8080
     depends_on:
       - backend
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend
