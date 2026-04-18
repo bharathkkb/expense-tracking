@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
@@ -16,8 +16,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ExpenseCreate(BaseModel):
     title: str
@@ -40,8 +39,7 @@ class ExpenseResponse(BaseModel):
     category: str
     user_id: int
     report_id: Optional[int] = None
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ReportCreate(BaseModel):
     title: str
@@ -55,8 +53,7 @@ class ReportResponse(BaseModel):
     date: datetime
     user_id: int
     expenses: List[ExpenseResponse] = []
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -107,7 +104,7 @@ async def add_expense(request: ExpenseCreate, db: Session = Depends(get_db)):
         amount=request.amount,
         category=request.category,
         user_id=user.id,
-        date=request.date if request.date else datetime.utcnow()
+        date=request.date if request.date else datetime.now(timezone.utc)
     )
     db.add(new_expense)
     db.commit()

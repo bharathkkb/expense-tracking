@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 # Fallback to SQLite if no Cloud SQL connection info is provided
@@ -32,7 +32,7 @@ class Report(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(100), nullable=False)
     status = Column(String(50), default='Pending Approval')
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     
     user = relationship("User", back_populates="reports")
@@ -43,7 +43,7 @@ class Expense(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(100), nullable=False)
     amount = Column(Float, nullable=False)
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     category = Column(String(50), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     report_id = Column(Integer, ForeignKey('reports.id'), nullable=True)
