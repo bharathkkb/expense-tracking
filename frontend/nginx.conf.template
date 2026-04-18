@@ -1,0 +1,28 @@
+server {
+    listen ${PORT} default_server;
+    server_name _;
+    error_log /dev/stderr debug;
+    access_log /dev/stdout main;
+
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        # Proxy to the Backend Cloud Run Service
+        # The env var BACKEND_URL is injected by Terraform
+        proxy_pass ${BACKEND_URL}/api/;
+
+        # Essential for Cloud Run (SNI)
+        proxy_ssl_server_name on;
+        proxy_ssl_protocols TLSv1.3;
+
+        # Standard Proxy Headers
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
