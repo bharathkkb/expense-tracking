@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 
-const categories = ['Food', 'Transport', 'Entertainment', 'Bills', 'Other']
-
 const mockAvailableExpenses = [
-  { title: 'Flight tickets roundtrip SFO-LAS', amount: 350.00, category: 'Transport' },
-  { title: 'Business meals - Vegas', amount: 120.50, category: 'Food' },
-  { title: 'Uber to McCarran Airport', amount: 45.20, category: 'Transport' },
-  { title: 'Hotel Stay - Bellagio', amount: 400.00, category: 'Bills' },
-  { title: 'Client Lunch - Prime Steakhouse', amount: 85.00, category: 'Food' },
-  { title: 'Taxi to Convention Center', amount: 50.00, category: 'Transport' }
+  { merchant: 'Delta Airlines', details: 'DL123 (SFO-JFK)', amount: 450.00, category: 'airfare', status: 'Approved', compliance: 'green' },
+  { merchant: 'Uber', details: 'Transportation', amount: 42.50, category: 'taxi', status: 'Awaiting Mgr.', compliance: 'yellow' },
+  { merchant: "Ruth's Chris Steakhouse", details: 'Meals', amount: 215.80, category: 'meals', status: 'Action Req.', compliance: 'red', note: 'Policy Breach: Over Per Diem' },
+  { merchant: 'Flight tickets', details: 'roundtrip SFO-LAS', amount: 350.00, category: 'airfare', status: 'Awaiting Mgr.', compliance: 'green' },
+  { merchant: 'Business meals', details: 'Vegas', amount: 120.50, category: 'meals', status: 'Approved', compliance: 'green' }
 ]
 
 function App() {
@@ -16,43 +13,27 @@ function App() {
   const [title, setTitle] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
-  const [date, setDate] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().substring(0, 10))
   const [user, setUser] = useState(null)
   const [loginUsername, setLoginUsername] = useState('')
   
-  const [editingId, setEditingId] = useState(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editAmount, setEditAmount] = useState('')
-  const [editCategory, setEditCategory] = useState('')
-  const [editDate, setEditDate] = useState('')
+  // Simple state for switching views
+  const [activeTab, setActiveTab] = useState('dashboard')
   
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [isEditDropdownOpen, setIsEditDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
-  const editDropdownRef = useRef(null)
-
-  // UI State
-  const [visibleForm, setVisibleForm] = useState('none') // 'add', 'reports', 'trip'
-
   // Reports State
   const [selectedExpenses, setSelectedExpenses] = useState([])
   const [reports, setReports] = useState([])
   const [reportTitle, setReportTitle] = useState('')
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false)
-      if (editDropdownRef.current && !editDropdownRef.current.contains(event.target)) setIsEditDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
+  const [filterOption, setFilterOption] = useState('all')
+  
   useEffect(() => {
     if (user) {
       fetch(`/api/expenses?username=${user.username}`)
         .then(res => res.json())
-        .then(data => setExpenses(data))
+        .then(data => {
+          // Map API data categories to match lowercase styles if needed or just use as is
+          setExpenses(data)
+        })
         .catch(err => console.error('Error fetching expenses:', err))
     }
   }, [user])
@@ -71,8 +52,7 @@ function App() {
 
   const handleAdd = (e) => {
     e.preventDefault()
-    const payload = { title, amount: parseFloat(amount), category, username: user.username }
-    if (date) payload.date = date
+    const payload = { title, amount: parseFloat(amount), category, username: user.username, date }
     
     fetch('/api/expenses', {
       method: 'POST',
@@ -81,59 +61,24 @@ function App() {
     })
       .then(res => res.json())
       .then(newExpense => {
-        setExpenses([...expenses, newExpense])
+        setExpenses([newExpense, ...expenses])
         setTitle('')
         setAmount('')
         setCategory('')
-        setDate('')
-        setVisibleForm('none')
       })
       .catch(err => console.error('Error adding expense:', err))
   }
 
   const handlePrepopulate = (mock) => {
-    setTitle(mock.title)
+    setTitle(`${mock.merchant} - ${mock.details}`)
     setAmount(mock.amount.toString())
     setCategory(mock.category)
-    // Example implies date handles automatically or default current date
     setDate(new Date().toISOString().substring(0, 10))
-    setVisibleForm('add')
-  }
-
-  const startEdit = (expense) => {
-    setEditingId(expense.id)
-    setEditTitle(expense.title)
-    setEditAmount(expense.amount.toString())
-    setEditCategory(expense.category)
-    setEditDate(expense.date.substring(0, 10))
-  }
-
-  const handleSave = (id) => {
-    fetch(`/api/expenses/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editTitle, amount: parseFloat(editAmount), category: editCategory, date: editDate })
-    })
-      .then(res => res.json())
-      .then(updatedExpense => {
-        setExpenses(expenses.map(e => e.id === id ? updatedExpense : e))
-        setEditingId(null)
-      })
-      .catch(err => console.error('Error updating expense:', err))
-  }
-
-  const handleDelete = (id) => {
-    fetch(`/api/expenses/${id}`, { method: 'DELETE' })
-      .then(() => {
-        setExpenses(expenses.filter(e => e.id !== id))
-        setSelectedExpenses(selectedExpenses.filter(espId => espId !== id))
-      })
-      .catch(err => console.error('Error deleting expense:', err))
   }
 
   const toggleSelectExpense = (id) => {
     if (selectedExpenses.includes(id)) {
-      setSelectedExpenses(selectedExpenses.filter(e => e !== id))
+      setSelectedExpenses(selectedExpenses.filter(expId => expId !== id))
     } else {
       setSelectedExpenses([...selectedExpenses, id])
     }
@@ -142,270 +87,352 @@ function App() {
   const handleCreateReport = (e) => {
     e.preventDefault()
     if (selectedExpenses.length === 0 || !reportTitle) return
-
-    const reportExpenses = expenses.filter(e => selectedExpenses.includes(e.id))
-    const totalAmount = reportExpenses.reduce((acc, e) => acc + e.amount, 0)
-
+    
+    const reportExpenses = expenses.filter(exp => selectedExpenses.includes(exp.id))
     const newReport = {
       id: Date.now(),
       title: reportTitle,
       expenses: reportExpenses,
-      total: totalAmount,
       status: 'Pending Approval',
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      total: reportExpenses.reduce((acc, exp) => acc + exp.amount, 0)
     }
-
+    
     setReports([...reports, newReport])
     setReportTitle('')
     setSelectedExpenses([])
-    setVisibleForm('none')
   }
 
-  const total = expenses.reduce((acc, e) => acc + e.amount, 0)
+  const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0)
+  const totalPending = reports.reduce((acc, r) => acc + r.total, 0)
+
+  const filteredExpenses = expenses.filter(e => {
+    if (filterOption === 'amount') return e.amount > 200;
+    if (filterOption === 'date') {
+      const dateObj = new Date(e.date);
+      const now = new Date();
+      const diffTime = Math.abs(now - dateObj);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    }
+    return true;
+  });
 
   return (
-    <div className="container">
+    <div className="app-wrapper" style={{ backgroundColor: '#f4f5f7', minHeight: '100vh', width: '100%' }}>
       {!user ? (
-        <div className="card" style={{ maxWidth: '400px', margin: '10vh auto', width: '100%' }}>
-          <h1 className="gradient-text" style={{ textAlign: 'center', marginBottom: '1.5rem', fontSize: '1.75rem' }}>gSpend Terminal</h1>
-          <form onSubmit={handleLogin}>
-            <div className="form-group">
-              <label>Username</label>
-              <input 
-                type="text" 
-                placeholder="Enter ID" 
-                className="input-field"
-                value={loginUsername}
-                onChange={e => setLoginUsername(e.target.value)}
-                required
-              />
+        <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5f7', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+          {/* Left Side: Hero/Marketing */}
+          <div style={{ flex: 1, background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4rem' }}>
+            <div style={{ marginBottom: '2rem' }}>
+              <span style={{ fontWeight: '700', fontSize: '2rem', color: '#fff' }}>gSpend</span>
+              <span style={{ fontWeight: '500', fontSize: '2rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
             </div>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
-              Access Portal
-            </button>
-          </form>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', lineHeight: '1.2' }}>Precision Expense Analytics for Enterprise Teams</h1>
+            <p style={{ fontSize: '1.1rem', color: '#94a3b8', maxWidth: '500px', lineHeight: '1.6' }}>
+              Streamline your compliance operations and real-time transaction approvals across borders.
+            </p>
+          </div>
+
+          {/* Right Side: Login Form */}
+          <div style={{ width: '450px', background: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4rem' }}>
+            <div style={{ maxWidth: '320px', margin: '0 auto', width: '100%' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#0f172a', marginBottom: '0.5rem' }}>Welcome Back</h2>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>Please sign in to your account.</p>
+              
+              <form onSubmit={handleLogin}>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Username</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={loginUsername}
+                    onChange={e => setLoginUsername(e.target.value)}
+                    placeholder="E.g. john.doe@company.com"
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-submit" style={{ width: '100%', padding: '0.75rem' }}>Sign In</button>
+              </form>
+
+              <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span>Protected by Enterprise SSO. </span>
+                <span style={{ color: 'var(--active-nav)', cursor: 'pointer' }}>Need Help?</span>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
-          <div>
+        <>
+          {/* Sidebar Nav */}
+          <div className="sidebar">
+            <div>
+              <div style={{ padding: '1rem 1.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#ffffff' }}>gSpend</span>
+                  <span style={{ fontWeight: '500', fontSize: '1.1rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
+                </div>
+              </div>
+              <div className="nav-links">
+                <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+                  Dashboard
+                </div>
+                <div className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}>
+                  My Expenses
+                </div>
+                <div className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`} onClick={() => setActiveTab('approvals')}>
+                  Approvals <span className="badge">3</span>
+                </div>
+                <div className={`nav-item`}>
+                  Analytics
+                </div>
+              </div>
+            </div>
+            <div className="user-profile">
+              <div className="avatar">JD</div>
+              <div>
+                <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>Jane Doe</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Job Title, Cost Ctr</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Area */}
+          <div className="main-content" style={{ flex: 1 }}>
             {/* Header */}
             <div className="header">
-              <div>
-                <h1 className="gradient-text" style={{ fontSize: '1.75rem' }}>Expense Management</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Session: {user.username}</p>
+              <div className="logo-area">
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Enterprise Operations Dashboard</span>
               </div>
-              <button onClick={() => setUser(null)} className="btn btn-outline">Log Out</button>
-          </div>
-          
-            {/* Top Actions */}
-            <div className="top-actions">
-              <button className="btn-action" onClick={() => setVisibleForm(visibleForm === 'add' ? 'none' : 'add')}>
-                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>+</span>
-                <span>Add Transaction</span>
-              </button>
-              <button className="btn-action" onClick={() => setVisibleForm(visibleForm === 'reports' ? 'none' : 'reports')}>
-                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>#</span>
-                <span>Create Report</span>
-              </button>
-              <button className="btn-action" onClick={() => setVisibleForm(visibleForm === 'trip' ? 'none' : 'trip')}>
-                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>→</span>
-                <span>Plan a Trip</span>
-              </button>
+              <div className="header-right">
+                <input type="text" placeholder="Global Search" className="search-bar" />
+                <div style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>🌐</div>
+                <div style={{ cursor: 'pointer', color: 'var(--text-muted)', position: 'relative' }}>
+                  🔔 <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', borderRadius: '50%', padding: '0.1rem 0.3rem', fontSize: '0.6rem' }}>3</span>
+                </div>
+                <button className="btn-submit">Submit New Expense</button>
+              </div>
             </div>
 
-            {/* Conditional Form Areas */}
-            {visibleForm === 'add' && (
-              <div className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h2 style={{ fontSize: '1.25rem' }}>New Transaction</h2>
-                  <button className="btn btn-outline" onClick={() => setVisibleForm('none')}>Cancel</button>
+            <div className="dashboard-body">
+              {/* Top row cards */}
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <h3>Pending Reimbursements:</h3>
+                  <div className="stat-value">${totalPending.toFixed(2)}</div>
+                  <div className="mock-line-chart"></div>
                 </div>
-                <form onSubmit={handleAdd} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
-                <div className="form-group">
-                    <label>Description</label>
-                    <input type="text" placeholder="Expense Title" className="input-field" value={title} onChange={e => setTitle(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                    <label>Amount ($)</label>
-                    <input type="number" placeholder="0.00" className="input-field" value={amount} onChange={e => setAmount(e.target.value)} required step="0.01" />
-                </div>
-                <div className="form-group">
-                    <label>Date</label>
-                    <input type="date" className="input-field" value={date} onChange={e => setDate(e.target.value)} />
-                </div>
-                <div className="form-group">
-                    <label>Category</label>
-                    <select className="input-field" value={category} onChange={e => setCategory(e.target.value)} required>
-                      <option value="">Select</option>
-                      {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
+                <div className="stat-card">
+                  <h3>YTD Total Spend:</h3>
+                  <div className="stat-value">${totalSpent.toFixed(2)}</div>
+                  <div className="mock-chart" style={{ gap: '2px' }}>
+                    <div style={{ width: '8px', height: '10px', background: '#e5e7eb' }}></div>
+                    <div style={{ width: '8px', height: '15px', background: '#e5e7eb' }}></div>
+                    <div style={{ width: '8px', height: '25px', background: '#e5e7eb' }}></div>
+                    <div style={{ width: '8px', height: '35px', background: '#10b981' }}></div>
                   </div>
-                  <div style={{ paddingBottom: '1rem' }}>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Save Expense</button>
+                </div>
+                <div className="stat-card">
+                  <h3>Awaiting Mgr. Approval:</h3>
+                  <div className="stat-value">2</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--active-nav)', marginTop: 'auto', textDecoration: 'underline', cursor: 'pointer' }}>
+                    Detailed Mgr Request Link
                   </div>
-                </form>
+                </div>
               </div>
-            )}
 
-            {visibleForm === 'reports' && (
-              <div className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h2 style={{ fontSize: '1.25rem' }}>Create New Report</h2>
-                  <button className="btn btn-outline" onClick={() => setVisibleForm('none')}>Cancel</button>
-                </div>
-                <form onSubmit={handleCreateReport} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label>Report Title</label>
-                    <input type="text" placeholder="Quarterly Q1, Marketing Event etc." className="input-field" value={reportTitle} onChange={e => setReportTitle(e.target.value)} required />
-                </div>
-                  <div style={{ paddingBottom: '1rem' }}>
-                    <button type="submit" className="btn btn-primary" disabled={selectedExpenses.length === 0}>
-                      Submit {selectedExpenses.length} Selected Items
-                    </button>
+              {/* Content Grid Container */}
+              <div className="content-grid">
+                
+                {/* Left Box - Quick Submit */}
+                <div className="quick-submit-card">
+                  <div style={{ fontWeight: '600', fontSize: '1rem' }}>Quick Submit</div>
+                  <div className="drop-area">
+                    <span className="icon">↑</span>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Drag or Drop Receipts for Instant OCR & Matching.
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--active-nav)', textDecoration: 'underline' }}>
+                      or Capture on Mobile App.
+                    </div>
                   </div>
-              </form>
-                {selectedExpenses.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Select transactions from the history list below to group them in this report.</p>}
-            </div>
-            )}
+                  
+                  {/* Mock drafts inserted here to keep image fidelity while satisfying initial goal */}
+                  <div style={{ marginTop: '1rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Available Drafts</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {mockAvailableExpenses.map((mock, idx) => (
+                        <div key={idx} style={{ padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }} onClick={() => handlePrepopulate(mock)}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: '600' }}>{mock.merchant}</span>
+                            <span>${mock.amount.toFixed(2)}</span>
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{mock.details}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-            {visibleForm === 'trip' && (
-              <div className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h2 style={{ fontSize: '1.25rem' }}>Trip Planner</h2>
-                  <button className="btn btn-outline" onClick={() => setVisibleForm('none')}>Cancel</button>
-                </div>
-                <p style={{ color: 'var(--text-muted)' }}>Planning feature coming soon...</p>
-              </div>
-            )}
-
-            {/* Dashboard Layout */}
-            <div className="dashboard-grid">
-            
-              {/* Left Column - History & Mock expenses */}
-              <div>
-                {/* Mock Expenses */}
-                <div className="card" style={{ marginBottom: '2rem' }}>
-                  <h2 style={{ fontSize: '0.875rem', marginBottom: '1rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Available Drafts (Click to Add)</h2>
-                  <div className="mock-expenses-grid">
-                    {mockAvailableExpenses.map((mock, idx) => (
-                      <div key={idx} className="mock-item" onClick={() => handlePrepopulate(mock)}>
-                        <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--primary)' }}>{mock.category}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', margin: '0.25rem 0' }}>{mock.title}</div>
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>${mock.amount.toFixed(2)}</div>
+                  {/* Hidden Add Transaction logic bound to Form below drafts instead of toggles to mirror enterprise form styling */}
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Direct Add Entry</div>
+                    <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div>
+                        <input type="text" placeholder="Merchant / Title" className="input-field" value={title} onChange={e => setTitle(e.target.value)} required />
                       </div>
-                    ))}
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <input type="number" placeholder="Amount" className="input-field" value={amount} onChange={e => setAmount(e.target.value)} required step="0.01" />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <input type="date" className="input-field" value={date} onChange={e => setDate(e.target.value)} required />
+                        </div>
+                      </div>
+                      <div>
+                        <select className="input-field" value={category} onChange={e => setCategory(e.target.value)} required>
+                          <option value="">Category</option>
+                          <option value="airfare">Airfare</option>
+                          <option value="meals">Meals</option>
+                          <option value="taxi">Taxi</option>
+                          <option value="lodging">Lodging</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="btn-submit" style={{ width: '100%', textTransform: 'none', fontSize: '0.85rem', padding: '0.625rem', borderRadius: '6px' }}>Submit Line Item</button>
+                    </form>
                   </div>
                 </div>
 
-                {/* Transactions List */}
-                <div className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem' }}>Recent Transactions</h2>
-                    <div style={{ fontWeight: '600' }}>Total Active: ${total.toFixed(2)}</div>
+                {/* Right Box - Table */}
+                <div className="transactions-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: '600', fontSize: '1rem' }}>Recent Transactions</div>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      {selectedExpenses.length > 0 && (
+                        <form onSubmit={handleCreateReport} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Report Title" 
+                            className="input-field"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', width: '150px' }}
+                            value={reportTitle}
+                            onChange={e => setReportTitle(e.target.value)}
+                            required 
+                          />
+                          <button type="submit" className="btn-submit" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', textTransform: 'none' }}>
+                            Create Report ({selectedExpenses.length})
+                          </button>
+                        </form>
+                      )}
+                      <select 
+                        value={filterOption}
+                        onChange={e => setFilterOption(e.target.value)}
+                        style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.75rem' }}
+                      >
+                        <option value="all">All Transactions</option>
+                        <option value="amount">Amount &gt; $200</option>
+                        <option value="date">Date (Last 7 Days)</option>
+                      </select>
+                      <input type="text" placeholder="Search" style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.75rem' }} />
+                    </div>
                   </div>
 
-                  <div className="expenses-list">
-                    {expenses.length === 0 ? (
-                      <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No transactions reported yet.</p>
-                    ) : (
-                      expenses.map(e => {
-                        const parentReport = reports.find(r => r.expenses.some(repExp => repExp.id === e.id));
-                        return (
-                          <div key={e.id} className="transaction-item">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedExpenses.includes(e.id)}
-                                onChange={() => toggleSelectExpense(e.id)}
-                                style={{ width: '16px', height: '16px' }}
-                              />
-                              <div>
-                                <div style={{ fontWeight: '600', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                  {e.title}
-                                  {parentReport && <span style={{ fontSize: '0.7rem', background: '#eef2ff', color: '#4f46e5', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: '600' }}>In Report: {parentReport.title}</span>}
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px' }}></th>
+                        <th>Date</th>
+                        <th>Merchant</th>
+                        <th>Amount</th>
+                        <th>Category</th>
+                        <th style={{ textAlign: 'center' }}>Policy Compliance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredExpenses.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No transactions matching filter.</td>
+                        </tr>
+                      ) : (
+                        filteredExpenses.map(e => {
+                          // Fallback static fields for parsed mock looks matching user visual input
+                          const merchant = e.title.split(' - ')[0] || e.title
+                          const details = e.title.split(' - ')[1] || ''
+                          
+                          // Mock policy flag checks purely calculated towards UI look match
+                          const isPolicyRed = e.amount > 200 && e.category === 'meals'
+                          const parentReport = reports.find(r => r.expenses.some(repExp => repExp.id === e.id))
+
+                          return (
+                            <tr key={e.id}>
+                              <td>
+                                {!parentReport && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedExpenses.includes(e.id)}
+                                    onChange={() => toggleSelectExpense(e.id)}
+                                    style={{ cursor: 'pointer' }}
+                                  />
+                                )}
+                              </td>
+                              <td>{new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                              <td>
+                                <div className="merchant-container">
+                                  <span className="merchant-title">
+                                    {merchant}
+                                    {parentReport && <span style={{ fontSize: '0.65rem', background: '#eef2ff', color: '#4f46e5', padding: '0.1rem 0.3rem', borderRadius: '3px', marginLeft: '0.5rem', fontWeight: '500' }}>In Report: {parentReport.title}</span>}
+                                  </span>
+                                  {details && <span className="merchant-sub">{details}</span>}
                                 </div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                  <span className="category-tag">{e.category}</span> • {new Date(e.date).toLocaleDateString()}
+                              </td>
+                              <td style={{ fontWeight: '600' }}>${e.amount.toFixed(2)}</td>
+                              <td>
+                                <span style={{ color: 'var(--text-muted)', textTransform: 'lowercase' }}>{e.category || 'other'}</span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                  <div className="policy-compliance">
+                                    <span className="circle-indicator indicator-green"></span>
+                                    <span className="circle-indicator indicator-yellow"></span>
+                                    <span className={`circle-indicator ${isPolicyRed ? 'indicator-red' : 'indicator-green'}`}></span>
+                                  </div>
+                                  {isPolicyRed && <div className="policy-tag">Policy Breach: Over Per Diem</div>}
                                 </div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                              <div className="amount-text">${e.amount.toFixed(2)}</div>
-                              <button onClick={() => startEdit(e)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Edit</button>
-                              <button
-                                onClick={() => handleDelete(e.id)} 
-                                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '1rem' }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
 
-              {/* Right Column - Reports */}
-              <div>
-                <div className="card">
-                  <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Active Reports</h2>
+                {/* Active Reports Panel */}
+                <div style={{ background: 'white', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: 'fit-content' }}>
+                  <div style={{ fontWeight: '600', fontSize: '1rem' }}>Submitted Reports</div>
                   {reports.length === 0 ? (
-                    <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No reports created yet.</p>
+                    <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No submitted reports.</p>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {reports.map(r => (
-                        <div key={r.id} style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <h3 style={{ fontSize: '1rem', fontWeight: '600' }}>{r.title}</h3>
-                            <span className="status-badge status-pending">{r.status}</span>
+                        <div key={r.id} style={{ padding: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                            <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{r.title}</span>
+                            <span className="status-badge status-pending" style={{ fontSize: '0.65rem' }}>Pending</span>
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                            Includes {r.expenses.length} line items
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '1rem' }}>${r.total.toFixed(2)}</span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(r.date).toLocaleDateString()}</span>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '0.5rem' }}>{r.expenses.length} line items</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem' }}>
+                            <span style={{ fontWeight: '600', color: 'var(--primary)' }}>${r.total.toFixed(2)}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                           </div>
                         </div>
                       ))}
                     </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* Modal Edit */}
-      {editingId && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
-            <h2 style={{ marginBottom: '1rem' }}>Edit Transaction</h2>
-            <div className="form-group">
-              <label>Description</label>
-              <input type="text" className="input-field" value={editTitle} onChange={ev => setEditTitle(ev.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Amount ($)</label>
-              <input type="number" className="input-field" value={editAmount} onChange={ev => setEditAmount(ev.target.value)} step="0.01" />
-            </div>
-            <div className="form-group">
-              <label>Date</label>
-              <input type="date" className="input-field" value={editDate} onChange={ev => setEditDate(ev.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Category</label>
-              <select className="input-field" value={editCategory} onChange={ev => setEditCategory(ev.target.value)}>
-                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <button onClick={() => setEditingId(null)} className="btn btn-outline">Cancel</button>
-              <button onClick={() => handleSave(editingId)} className="btn btn-primary">Save Changes</button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
     </div>
   )
