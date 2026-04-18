@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 
 # Import from our app module
-from database import init_db, get_db, User, Expense
+from database import init_db, get_db, User, Expense, Report
 
 # Define request/response models
 class UserLogin(BaseModel):
@@ -39,6 +39,22 @@ class ExpenseResponse(BaseModel):
     date: datetime
     category: str
     user_id: int
+    report_id: Optional[int] = None
+    class Config:
+        from_attributes = True
+
+class ReportCreate(BaseModel):
+    title: str
+    username: str
+    expense_ids: List[int]
+
+class ReportResponse(BaseModel):
+    id: int
+    title: str
+    status: str
+    date: datetime
+    user_id: int
+    expenses: List[ExpenseResponse] = []
     class Config:
         from_attributes = True
 
@@ -125,3 +141,33 @@ async def delete_expense(id: int, db: Session = Depends(get_db)):
     db.delete(expense)
     db.commit()
     return None
+
+@app.get("/api/reports", response_model=List[ReportResponse])
+async def get_reports(username: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return []
+    return db.query(Report).filter(Report.user_id == user.id).all()
+
+@app.post("/api/reports", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
+async def add_report(request: ReportCreate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == request.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    new_report = Report(
+        title=request.title,
+        user_id=user.id
+    )
+    db.add(new_report)
+    db.commit()
+    db.refresh(new_report)
+    
+    if request.expense_ids:
+        expenses = db.query(Expense).filter(Expense.id.in_(request.expense_ids), Expense.user_id == user.id).all()
+        for exp in expenses:
+            exp.report_id = new_report.id
+        db.commit()
+        db.refresh(new_report)
+        
+    return new_report

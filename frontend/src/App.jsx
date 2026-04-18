@@ -27,14 +27,33 @@ function App() {
   const [filterOption, setFilterOption] = useState('all')
   
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlUsername = urlParams.get('username');
+    if (urlUsername) {
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: urlUsername })
+      })
+        .then(res => res.json())
+        .then(userData => setUser(userData))
+        .catch(err => console.error('Error auto-logging in:', err))
+    }
+  }, [])
+
+  useEffect(() => {
     if (user) {
+      // Fetch Expenses
       fetch(`/api/expenses?username=${user.username}`)
         .then(res => res.json())
-        .then(data => {
-          // Map API data categories to match lowercase styles if needed or just use as is
-          setExpenses(data)
-        })
+        .then(data => setExpenses(data))
         .catch(err => console.error('Error fetching expenses:', err))
+        
+      // Fetch Reports
+      fetch(`/api/reports?username=${user.username}`)
+        .then(res => res.json())
+        .then(data => setReports(data))
+        .catch(err => console.error('Error fetching reports:', err))
     }
   }, [user])
 
@@ -46,7 +65,10 @@ function App() {
       body: JSON.stringify({ username: loginUsername })
     })
       .then(res => res.json())
-      .then(userData => setUser(userData))
+      .then(userData => {
+        setUser(userData)
+        window.history.pushState({}, '', `?username=${userData.username}`)
+      })
       .catch(err => console.error('Error logging in:', err))
   }
 
@@ -88,23 +110,28 @@ function App() {
     e.preventDefault()
     if (selectedExpenses.length === 0 || !reportTitle) return
     
-    const reportExpenses = expenses.filter(exp => selectedExpenses.includes(exp.id))
-    const newReport = {
-      id: Date.now(),
+    const payload = {
       title: reportTitle,
-      expenses: reportExpenses,
-      status: 'Pending Approval',
-      date: new Date().toISOString(),
-      total: reportExpenses.reduce((acc, exp) => acc + exp.amount, 0)
+      username: user.username,
+      expense_ids: selectedExpenses
     }
     
-    setReports([...reports, newReport])
-    setReportTitle('')
-    setSelectedExpenses([])
+    fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => res.json())
+      .then(newReport => {
+        setReports([...reports, newReport])
+        setReportTitle('')
+        setSelectedExpenses([])
+      })
+      .catch(err => console.error('Error creating report:', err))
   }
 
   const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0)
-  const totalPending = reports.reduce((acc, r) => acc + r.total, 0)
+  const totalPending = reports.reduce((acc, r) => acc + (r.total !== undefined ? r.total : r.expenses.reduce((sum, e) => sum + e.amount, 0)), 0)
 
   const filteredExpenses = expenses.filter(e => {
     if (filterOption === 'amount') return e.amount > 200;
@@ -421,7 +448,7 @@ function App() {
                           </div>
                           <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '0.5rem' }}>{r.expenses.length} line items</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem' }}>
-                            <span style={{ fontWeight: '600', color: 'var(--primary)' }}>${r.total.toFixed(2)}</span>
+                            <span style={{ fontWeight: '600', color: 'var(--primary)' }}>${(r.total !== undefined ? r.total : r.expenses.reduce((sum, e) => sum + e.amount, 0)).toFixed(2)}</span>
                             <span style={{ color: 'var(--text-muted)' }}>{new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                           </div>
                         </div>

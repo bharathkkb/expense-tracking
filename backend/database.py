@@ -25,6 +25,18 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
     expenses = relationship("Expense", back_populates="user")
+    reports = relationship("Report", back_populates="user")
+
+class Report(Base):
+    __tablename__ = 'reports'
+    id = Column(Integer, primary_key=True)
+    title = Column(String(100), nullable=False)
+    status = Column(String(50), default='Pending Approval')
+    date = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    
+    user = relationship("User", back_populates="reports")
+    expenses = relationship("Expense", back_populates="report")
 
 class Expense(Base):
     __tablename__ = 'expenses'
@@ -34,8 +46,10 @@ class Expense(Base):
     date = Column(DateTime, default=datetime.utcnow)
     category = Column(String(50), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    report_id = Column(Integer, ForeignKey('reports.id'), nullable=True)
     
     user = relationship("User", back_populates="expenses")
+    report = relationship("Report", back_populates="expenses")
 
     def to_dict(self):
         return {
