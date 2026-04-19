@@ -25,6 +25,9 @@ function App() {
   const [reports, setReports] = useState([])
   const [reportTitle, setReportTitle] = useState('')
   const [filterOption, setFilterOption] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortColumn, setSortColumn] = useState('date')
+  const [sortDirection, setSortDirection] = useState('desc')
   
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -133,16 +136,54 @@ function App() {
   const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0)
   const totalPending = reports.reduce((acc, r) => acc + (r.total !== undefined ? r.total : r.expenses.reduce((sum, e) => sum + e.amount, 0)), 0)
 
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   const filteredExpenses = expenses.filter(e => {
-    if (filterOption === 'amount') return e.amount > 200;
+    // Dropdown Filter
+    let matchesFilter = true;
+    if (filterOption === 'amount') matchesFilter = e.amount > 200;
     if (filterOption === 'date') {
       const dateObj = new Date(e.date);
       const now = new Date();
       const diffTime = Math.abs(now - dateObj);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays <= 7;
+      matchesFilter = diffDays <= 7;
     }
-    return true;
+
+    // Search Filter
+    let matchesSearch = true;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const title = e.title ? e.title.toLowerCase() : '';
+      const category = e.category ? e.category.toLowerCase() : '';
+      matchesSearch = title.includes(query) || category.includes(query);
+    }
+
+    return matchesFilter && matchesSearch;
+  });
+
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    let valA = a[sortColumn];
+    let valB = b[sortColumn];
+
+    if (sortColumn === 'compliance') {
+      valA = a.amount > 500 ? 1 : 0;
+      valB = b.amount > 500 ? 1 : 0;
+    }
+
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+
+    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
   });
 
   return (
@@ -229,7 +270,7 @@ function App() {
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Enterprise Operations Dashboard</span>
               </div>
               <div className="header-right">
-                <input type="text" placeholder="Global Search" className="search-bar" />
+
                 <div style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>🌐</div>
                 <div style={{ cursor: 'pointer', color: 'var(--text-muted)', position: 'relative' }}>
                   🔔 <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', borderRadius: '50%', padding: '0.1rem 0.3rem', fontSize: '0.6rem' }}>3</span>
@@ -362,7 +403,13 @@ function App() {
                         <option value="amount">Amount &gt; $200</option>
                         <option value="date">Date (Last 7 Days)</option>
                       </select>
-                      <input type="text" placeholder="Search" style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.75rem' }} />
+                            <input
+                              type="text"
+                              placeholder="Search"
+                              style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.75rem' }}
+                              value={searchQuery}
+                              onChange={e => setSearchQuery(e.target.value)}
+                            />
                     </div>
                   </div>
 
@@ -370,20 +417,20 @@ function App() {
                     <thead>
                       <tr>
                         <th style={{ width: '40px' }}></th>
-                        <th>Date</th>
-                        <th>Merchant</th>
-                        <th>Amount</th>
-                        <th>Category</th>
-                        <th style={{ textAlign: 'center' }}>Policy Compliance</th>
+                        <th style={{ cursor: 'pointer' }} onClick={() => handleSort('date')}>Date {sortColumn === 'date' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th style={{ cursor: 'pointer' }} onClick={() => handleSort('title')}>Merchant {sortColumn === 'title' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th style={{ cursor: 'pointer' }} onClick={() => handleSort('amount')}>Amount {sortColumn === 'amount' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th style={{ cursor: 'pointer' }} onClick={() => handleSort('category')}>Category {sortColumn === 'category' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('compliance')}>Policy Compliance {sortColumn === 'compliance' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredExpenses.length === 0 ? (
+                      {sortedExpenses.length === 0 ? (
                         <tr>
                           <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No transactions matching filter.</td>
                         </tr>
                       ) : (
-                        filteredExpenses.map(e => {
+                        sortedExpenses.map(e => {
                           // Fallback static fields for parsed mock looks matching user visual input
                           const merchant = e.title.split(' - ')[0] || e.title
                           const details = e.title.split(' - ')[1] || ''
