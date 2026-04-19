@@ -207,10 +207,7 @@ function App() {
                 <div className={`nav-item ${activeTab === 'expenses' ? 'active' : ''}`} onClick={() => setActiveTab('expenses')}>
                   My Expenses
                 </div>
-                <div className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`} onClick={() => setActiveTab('approvals')}>
-                  Approvals <span className="badge">3</span>
-                </div>
-                <div className={`nav-item`}>
+                <div className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
                   Analytics
                 </div>
               </div>
@@ -237,11 +234,13 @@ function App() {
                 <div style={{ cursor: 'pointer', color: 'var(--text-muted)', position: 'relative' }}>
                   🔔 <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', borderRadius: '50%', padding: '0.1rem 0.3rem', fontSize: '0.6rem' }}>3</span>
                 </div>
-                <button className="btn-submit">Submit New Expense</button>
+
               </div>
             </div>
 
             <div className="dashboard-body">
+              {activeTab === 'dashboard' ? (
+                <>
               {/* Top row cards */}
               <div className="stats-grid">
                 <div className="stat-card">
@@ -334,22 +333,26 @@ function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: '600', fontSize: '1rem' }}>Recent Transactions</div>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      {selectedExpenses.length > 0 && (
-                        <form onSubmit={handleCreateReport} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <input 
-                            type="text" 
-                            placeholder="Report Title" 
-                            className="input-field"
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', width: '150px' }}
-                            value={reportTitle}
-                            onChange={e => setReportTitle(e.target.value)}
-                            required 
-                          />
-                          <button type="submit" className="btn-submit" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', textTransform: 'none' }}>
-                            Create Report ({selectedExpenses.length})
-                          </button>
-                        </form>
-                      )}
+                      <form onSubmit={handleCreateReport} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Report Title" 
+                          className="input-field"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', width: '150px' }}
+                          value={reportTitle}
+                          onChange={e => setReportTitle(e.target.value)}
+                          required 
+                          disabled={selectedExpenses.length === 0}
+                        />
+                        <button 
+                          type="submit" 
+                          className="btn-submit" 
+                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', textTransform: 'none', opacity: selectedExpenses.length === 0 ? 0.5 : 1, cursor: selectedExpenses.length === 0 ? 'not-allowed' : 'pointer' }}
+                          disabled={selectedExpenses.length === 0}
+                        >
+                          Create Report ({selectedExpenses.length})
+                        </button>
+                      </form>
                       <select 
                         value={filterOption}
                         onChange={e => setFilterOption(e.target.value)}
@@ -457,6 +460,87 @@ function App() {
                   )}
                 </div>
               </div>
+              </>
+              ) : activeTab === 'expenses' ? (
+                <div style={{ background: 'white', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem' }}>
+                  <div style={{ fontWeight: '600', fontSize: '1.1rem', marginBottom: '1rem' }}>My Reports & Associated Transactions</div>
+                  {reports.length === 0 ? (
+                    <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No submitted reports.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {reports.map(r => (
+                        <div key={r.id} style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>{r.title}</span>
+                            <span className="status-badge status-pending">Pending</span>
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                            {new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} | ${r.expenses.reduce((sum, e) => sum + e.amount, 0).toFixed(2)}
+                          </div>
+                          
+                          {/* Associated Transactions List */}
+                          <div style={{ background: '#f8fafc', borderRadius: '6px', padding: '0.75rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>Line Items</div>
+                            {r.expenses.map(e => (
+                              <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #e2e8f0' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>{e.title.split(' - ')[0]}</div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{e.category}</div>
+                                </div>
+                                <div style={{ fontWeight: '600', fontSize: '0.85rem' }}>${e.amount.toFixed(2)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : activeTab === 'analytics' ? (
+                <div style={{ background: 'white', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem' }}>
+                  <div style={{ fontWeight: '600', fontSize: '1.1rem', marginBottom: '1rem' }}>Spend Analytics</div>
+                  
+                  {(() => {
+                    const breakdown = expenses.reduce((acc, exp) => {
+                      acc[exp.category] = (acc[exp.category] || 0) + exp.amount
+                      return acc
+                    }, {})
+                    
+                    const categories = Object.keys(breakdown)
+                    const total = Object.values(breakdown).reduce((sum, val) => sum + val, 0)
+                    
+                    return categories.length === 0 ? (
+                      <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No transaction data available.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {categories.map(cat => {
+                          const amount = breakdown[cat]
+                          const percentage = total > 0 ? (amount / total) * 100 : 0
+                          
+                          return (
+                            <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                <span style={{ fontWeight: '500', textTransform: 'capitalize' }}>{cat}</span>
+                                <span style={{ fontWeight: '600' }}>${amount.toFixed(2)} ({percentage.toFixed(1)}%)</span>
+                              </div>
+                              <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ width: `${percentage}%`, height: '100%', background: 'var(--active-nav)' }}></div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        
+                        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: '600', fontSize: '0.9rem' }}>
+                          <span>Total Tracked Spend</span>
+                          <span>${total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+                <div style={{ padding: '2rem', textAlign: 'center' }}>Tab not implemented yet.</div>
+              )}
             </div>
           </div>
         </>
