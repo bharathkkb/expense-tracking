@@ -24,6 +24,11 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
+    first_name = Column(String(50), nullable=True)
+    last_name = Column(String(50), nullable=True)
+    job_title = Column(String(50), nullable=True)
+    cost_ctr = Column(String(50), nullable=True)
+    
     expenses = relationship("Expense", back_populates="user")
     reports = relationship("Report", back_populates="user")
 

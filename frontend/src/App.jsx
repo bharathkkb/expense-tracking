@@ -28,6 +28,11 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortColumn, setSortColumn] = useState('date')
   const [sortDirection, setSortDirection] = useState('desc')
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
+  const [editJobTitle, setEditJobTitle] = useState('')
+  const [editCostCtr, setEditCostCtr] = useState('')
   
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -132,6 +137,25 @@ function App() {
       })
       .catch(err => console.error('Error creating report:', err))
   }
+
+  const handleUpdateProfile = () => {
+    fetch(`/api/users/${user.username}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: editFirstName,
+        last_name: editLastName,
+        job_title: editJobTitle,
+        cost_ctr: editCostCtr
+      })
+    })
+      .then(res => res.json())
+      .then(updatedUser => {
+        setUser(updatedUser);
+        setIsProfileModalOpen(false);
+      })
+      .catch(err => console.error('Error updating profile:', err))
+  };
 
   const totalSpent = expenses.reduce((acc, e) => acc + e.amount, 0)
   const totalPending = reports.reduce((acc, r) => acc + (r.total !== undefined ? r.total : r.expenses.reduce((sum, e) => sum + e.amount, 0)), 0)
@@ -253,11 +277,17 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="user-profile">
-              <div className="avatar">JD</div>
+            <div className="user-profile" style={{ cursor: 'pointer' }} onClick={() => {
+              setEditFirstName(user?.first_name || '');
+              setEditLastName(user?.last_name || '');
+              setEditJobTitle(user?.job_title || '');
+              setEditCostCtr(user?.cost_ctr || '');
+              setIsProfileModalOpen(true);
+            }}>
+              <div className="avatar">{user?.first_name && user?.last_name ? `${user.first_name[0]}${user.last_name[0]}` : 'JD'}</div>
               <div>
-                <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>Jane Doe</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Job Title, Cost Ctr</div>
+                <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : 'Jane Doe'}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.job_title ? `${user.job_title}, ${user.cost_ctr}` : 'Job Title, Cost Ctr'}</div>
               </div>
             </div>
           </div>
@@ -590,6 +620,39 @@ function App() {
               )}
             </div>
           </div>
+
+          {isProfileModalOpen && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '400px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: '#0f172a' }}>Update Profile</h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-muted)' }}>First Name</label>
+                  <input type="text" value={editFirstName} onChange={e => setEditFirstName(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-muted)' }}>Last Name</label>
+                  <input type="text" value={editLastName} onChange={e => setEditLastName(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-muted)' }}>Job Title</label>
+                  <input type="text" value={editJobTitle} onChange={e => setEditJobTitle(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-muted)' }}>Cost Center</label>
+                  <input type="text" value={editCostCtr} onChange={e => setEditCostCtr(e.target.value)} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }} />
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <button onClick={() => setIsProfileModalOpen(false)} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
+                  <button onClick={handleUpdateProfile} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: 'none', background: 'var(--active-nav)', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Save Changes</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

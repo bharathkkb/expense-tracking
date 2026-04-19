@@ -38,6 +38,30 @@ def test_login():
     assert response.status_code == 200
     assert response.json()["username"] == "testuser"
     assert "id" in response.json()
+    assert response.json()["first_name"] == "Jane"
+    assert response.json()["last_name"] == "Doe"
+    assert response.json()["job_title"] == "Job Title"
+    assert response.json()["cost_ctr"] == "CC-001"
+
+def test_update_user():
+    # Create user first
+    client.post("/api/login", json={"username": "testuser"})
+    
+    response = client.put("/api/users/testuser", json={
+        "first_name": "John",
+        "last_name": "Smith",
+        "job_title": "Senior Manager",
+        "cost_ctr": "CC-002"
+    })
+    assert response.status_code == 200
+    assert response.json()["first_name"] == "John"
+    assert response.json()["last_name"] == "Smith"
+    assert response.json()["job_title"] == "Senior Manager"
+    assert response.json()["cost_ctr"] == "CC-002"
+    
+    # Verify persistence
+    resp_login = client.post("/api/login", json={"username": "testuser"})
+    assert resp_login.json()["first_name"] == "John"
 
 def test_get_expenses_empty():
     response = client.get("/api/expenses?username=testuser")

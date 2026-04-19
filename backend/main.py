@@ -16,7 +16,17 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    job_title: Optional[str] = None
+    cost_ctr: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    job_title: Optional[str] = None
+    cost_ctr: Optional[str] = None
 
 class ExpenseCreate(BaseModel):
     title: str
@@ -80,10 +90,53 @@ async def root():
 async def login(request: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == request.username).first()
     if not user:
-        user = User(username=request.username)
+        user = User(
+            username=request.username,
+            first_name="Jane",
+            last_name="Doe",
+            job_title="Job Title",
+            cost_ctr="CC-001"
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
+    else:
+        # Fallback for existing users with empty profile fields
+        updated = False
+        if not user.first_name:
+            user.first_name = "Jane"
+            updated = True
+        if not user.last_name:
+            user.last_name = "Doe"
+            updated = True
+        if not user.job_title:
+            user.job_title = "Job Title"
+            updated = True
+        if not user.cost_ctr:
+            user.cost_ctr = "CC-001"
+            updated = True
+        if updated:
+            db.commit()
+            db.refresh(user)
+    return user
+
+@app.put("/api/users/{username}", response_model=UserResponse)
+async def update_user(username: str, request: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if request.first_name is not None:
+        user.first_name = request.first_name
+    if request.last_name is not None:
+        user.last_name = request.last_name
+    if request.job_title is not None:
+        user.job_title = request.job_title
+    if request.cost_ctr is not None:
+        user.cost_ctr = request.cost_ctr
+        
+    db.commit()
+    db.refresh(user)
     return user
 
 @app.get("/api/expenses", response_model=List[ExpenseResponse])
