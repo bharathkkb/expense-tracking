@@ -1,6 +1,7 @@
 import os
 import uuid
 from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from google.cloud import storage
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
@@ -76,6 +77,10 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+# Local static file mounting for receipts
+os.makedirs("receipts", exist_ok=True)
+app.mount("/api/receipts", StaticFiles(directory="receipts"), name="receipts")
 
 # CORS configuration
 app.add_middleware(
@@ -194,23 +199,35 @@ async def upload_receipt(id: int, file: UploadFile = File(...), db: Session = De
         raise HTTPException(status_code=404, detail="Expense not found")
         
     bucket_name = os.getenv("RECEIPT_BUCKET_NAME")
-    if not bucket_name:
-        raise HTTPException(status_code=500, detail="Receipt storage is not configured")
         
     try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        
         # Generate unique filename
         file_ext = file.filename.split(".")[-1]
-        blob_name = f"receipts/{id}-{uuid.uuid4()}.{file_ext}"
-        blob = bucket.blob(blob_name)
-        
-        # Read and upload file
+        filename = f"{id}-{uuid.uuid4()}.{file_ext}"
+
         contents = await file.read()
-        blob.upload_from_string(contents, content_type=file.content_type)
-        
-        expense.receipt_url = f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+
+        if bucket_name:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(bucket_name)
+            blob_name = f"receipts/{filename}"
+            blob = bucket.blob(blob_name)
+            
+            # Read and upload file
+            blob.upload_from_string(contents, content_type=file.content_type)
+            
+            expense.receipt_url = f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+        else:
+            # Local fallback
+            os.makedirs("receipts", exist_ok=True)
+            local_path = os.path.join("receipts", filename)
+            
+            with open(local_path, "wb") as f:
+                f.write(contents)
+            
+            # Use relative URL that matches our frontend routing
+            expense.receipt_url = f"/api/receipts/{filename}"
+
         db.commit()
         db.refresh(expense)
         return expense
