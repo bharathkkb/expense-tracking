@@ -16,6 +16,12 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().substring(0, 10))
   const [user, setUser] = useState(null)
   const [loginUsername, setLoginUsername] = useState('')
+  const [selectedFile, setSelectedFile] = useState(null)
+  const fileInputRef = useRef(null)
+  const [showModal, setShowModal] = useState(false)
+  const [modalImageUrl, setModalImageUrl] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [isImageLoading, setIsImageLoading] = useState(false)
   
   // Simple state for switching views
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -84,6 +90,8 @@ function App() {
     e.preventDefault()
     const payload = { title, amount: parseFloat(amount), category, username: user.username, date }
     
+    setIsUploading(true)
+    
     fetch('/api/expenses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,8 +103,36 @@ function App() {
         setTitle('')
         setAmount('')
         setCategory('')
+        
+        if (selectedFile) {
+          const formData = new FormData()
+          formData.append('file', selectedFile)
+          
+          fetch(`/api/expenses/${newExpense.id}/receipt`, {
+            method: 'POST',
+            body: formData
+          })
+            .then(res => res.json())
+            .then(updatedExpense => {
+              setExpenses(prevExpenses => prevExpenses.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp))
+              setSelectedFile(null)
+            })
+            .catch(err => console.error('Error uploading receipt:', err))
+            .finally(() => setIsUploading(false))
+        } else {
+          setIsUploading(false)
+        }
       })
-      .catch(err => console.error('Error adding expense:', err))
+      .catch(err => {
+        console.error('Error adding expense:', err)
+        setIsUploading(false)
+      })
+  }
+
+  const handleShowReceipt = (expenseId) => {
+    setModalImageUrl(`/api/expenses/${expenseId}/receipt`)
+    setIsImageLoading(true)
+    setShowModal(true)
   }
 
   const handlePrepopulate = (mock) => {
@@ -343,10 +379,16 @@ function App() {
                 {/* Left Box - Quick Submit */}
                 <div className="quick-submit-card">
                   <div style={{ fontWeight: '600', fontSize: '1rem' }}>Quick Submit</div>
-                  <div className="drop-area">
+                  <div className="drop-area" onClick={() => fileInputRef.current.click()} style={{ cursor: 'pointer' }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: 'none' }}
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                    />
                     <span className="icon">↑</span>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Drag or Drop Receipts for Instant OCR & Matching.
+                      {selectedFile ? `Selected: ${selectedFile.name}` : 'Click to upload or Drag & Drop Receipts'}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--active-nav)', textDecoration: 'underline' }}>
                       or Capture on Mobile App.
@@ -393,7 +435,9 @@ function App() {
                           <option value="lodging">Lodging</option>
                         </select>
                       </div>
-                      <button type="submit" className="btn-submit" style={{ width: '100%', textTransform: 'none', fontSize: '0.85rem', padding: '0.625rem', borderRadius: '6px' }}>Submit Line Item</button>
+                      <button type="submit" className="btn-submit" style={{ width: '100%', textTransform: 'none', fontSize: '0.85rem', padding: '0.625rem', borderRadius: '6px' }} disabled={isUploading}>
+                        {isUploading ? 'Uploading...' : 'Submit Line Item'}
+                      </button>
                     </form>
                   </div>
                 </div>
@@ -450,6 +494,7 @@ function App() {
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('title')}>Merchant {sortColumn === 'title' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('amount')}>Amount {sortColumn === 'amount' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('category')}>Category {sortColumn === 'category' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th>Receipt</th>
                         <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('compliance')}>Policy Compliance {sortColumn === 'compliance' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                       </tr>
                     </thead>
@@ -493,6 +538,13 @@ function App() {
                               <td style={{ fontWeight: '600' }}>${e.amount.toFixed(2)}</td>
                               <td>
                                 <span style={{ color: 'var(--text-muted)', textTransform: 'lowercase' }}>{e.category || 'other'}</span>
+                              </td>
+                              <td>
+                                {e.receipt_uri ? (
+                                  <button onClick={() => handleShowReceipt(e.id)} style={{ color: 'var(--active-nav)', fontSize: '0.85rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View</button>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
+                                )}
                               </td>
                               <td>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -649,6 +701,22 @@ function App() {
                   <button onClick={() => setIsProfileModalOpen(false)} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
                   <button onClick={handleUpdateProfile} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: 'none', background: 'var(--active-nav)', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Save Changes</button>
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {showModal && (
+            <div className="receipt-modal-overlay" onClick={() => setShowModal(false)}>
+              <div className="receipt-modal-content" onClick={e => e.stopPropagation()}>
+                <button className="receipt-modal-close" onClick={() => setShowModal(false)}>&times;</button>
+                {isImageLoading && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading image...</div>}
+                <img 
+                  src={modalImageUrl} 
+                  alt="Receipt" 
+                  className="receipt-modal-image" 
+                  onLoad={() => setIsImageLoading(false)}
+                  style={{ display: isImageLoading ? 'none' : 'block' }}
+                />
               </div>
             </div>
           )}

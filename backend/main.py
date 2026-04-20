@@ -1,10 +1,21 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
+import uuid
+from google.cloud import storage
+import os
+
+RECEIPT_BUCKET_NAME = os.getenv("RECEIPT_BUCKET_NAME")
+if not RECEIPT_BUCKET_NAME:
+    raise RuntimeError("RECEIPT_BUCKET_NAME environment variable is not set")
+
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
+if not GOOGLE_CLOUD_PROJECT:
+    raise RuntimeError("GOOGLE_CLOUD_PROJECT environment variable is not set")
 
 # Import from our app module
 from database import init_db, get_db, User, Expense, Report
@@ -49,6 +60,7 @@ class ExpenseResponse(BaseModel):
     category: str
     user_id: int
     report_id: Optional[int] = None
+    receipt_uri: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class ReportCreate(BaseModel):
@@ -191,6 +203,57 @@ async def delete_expense(id: int, db: Session = Depends(get_db)):
     db.delete(expense)
     db.commit()
     return None
+
+@app.post("/api/expenses/{id}/receipt", response_model=ExpenseResponse)
+async def upload_receipt(id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter(Expense.id == id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+        
+    file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
+    blob_name = f"receipts/{id}-{uuid.uuid4()}.{file_ext}"
+    
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(RECEIPT_BUCKET_NAME)
+        blob = bucket.blob(blob_name)
+        
+        content = await file.read()
+        blob.upload_from_string(content, content_type=file.content_type)
+        
+        expense.receipt_uri = f"gs://{RECEIPT_BUCKET_NAME}/{blob_name}"
+        db.commit()
+        db.refresh(expense)
+        
+        return expense
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to upload receipt: {str(e)}")
+
+@app.get("/api/expenses/{id}/receipt")
+async def get_receipt(id: int, db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter(Expense.id == id).first()
+    if not expense or not expense.receipt_uri:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    
+    try:
+        uri = expense.receipt_uri
+        bucket_name = uri.split('/')[2]
+        blob_name = '/'.join(uri.split('/')[3:])
+        
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        
+        content = blob.download_as_bytes()
+        
+        from fastapi.responses import Response
+        return Response(content=content, media_type=blob.content_type)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch receipt: {str(e)}")
 
 @app.get("/api/reports", response_model=List[ReportResponse])
 async def get_reports(username: str, db: Session = Depends(get_db)):
