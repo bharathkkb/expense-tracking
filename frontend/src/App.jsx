@@ -22,6 +22,7 @@ function App() {
   const [modalImageUrl, setModalImageUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isImageLoading, setIsImageLoading] = useState(false)
+  const [uploadingReceiptExpenseIds, setUploadingReceiptExpenseIds] = useState([])
   
   // Simple state for switching views
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -107,6 +108,7 @@ function App() {
         if (selectedFile) {
           const formData = new FormData()
           formData.append('file', selectedFile)
+          setUploadingReceiptExpenseIds(prev => [...prev, newExpense.id])
           
           fetch(`/api/expenses/${newExpense.id}/receipt`, {
             method: 'POST',
@@ -118,7 +120,10 @@ function App() {
               setSelectedFile(null)
             })
             .catch(err => console.error('Error uploading receipt:', err))
-            .finally(() => setIsUploading(false))
+            .finally(() => {
+              setUploadingReceiptExpenseIds(prev => prev.filter(id => id !== newExpense.id))
+              setIsUploading(false)
+            })
         } else {
           setIsUploading(false)
         }
@@ -379,7 +384,18 @@ function App() {
                 {/* Left Box - Quick Submit */}
                 <div className="quick-submit-card">
                   <div style={{ fontWeight: '600', fontSize: '1rem' }}>Quick Submit</div>
-                  <div className="drop-area" onClick={() => fileInputRef.current.click()} style={{ cursor: 'pointer' }}>
+                  <div 
+                    className="drop-area" 
+                    onClick={() => fileInputRef.current.click()} 
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        setSelectedFile(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -542,6 +558,8 @@ function App() {
                               <td>
                                 {e.receipt_uri ? (
                                   <button onClick={() => handleShowReceipt(e.id)} style={{ color: 'var(--active-nav)', fontSize: '0.85rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View</button>
+                                ) : uploadingReceiptExpenseIds.includes(e.id) ? (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>⌛ Uploading...</span>
                                 ) : (
                                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
                                 )}
