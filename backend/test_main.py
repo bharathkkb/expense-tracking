@@ -8,6 +8,8 @@ import os
 os.environ["DATABASE_URL"] = "sqlite:///test_expenses.db"
 
 from main import app
+import main
+main.LOCAL_RECEIPT_DIR = "test_receipts"
 from database import Base, get_db, Expense, User, Report
 
 # Setup test database
@@ -118,3 +120,37 @@ def test_add_report():
     resp_expenses = client.get("/api/expenses?username=testuser")
     for exp in resp_expenses.json():
         assert exp["report_id"] == response.json()["id"]
+
+@pytest.fixture(autouse=True)
+def cleanup_receipts():
+    yield
+    import shutil
+    if os.path.exists("test_receipts"):
+        shutil.rmtree("test_receipts")
+
+def test_receipt_upload_download_local():
+    # Create user and expense first
+    client.post("/api/login", json={"username": "testuser"})
+    resp = client.post("/api/expenses", json={
+        "title": "Receipt Test",
+        "amount": 30.0,
+        "category": "lodging",
+        "username": "testuser"
+    })
+    expense_id = resp.json()["id"]
+    
+    # Upload a receipt
+    file_content = b"dummy receipt content"
+    response = client.post(
+        f"/api/expenses/{expense_id}/receipt",
+        files={"file": ("receipt.jpg", file_content, "image/jpeg")}
+    )
+    assert response.status_code == 200
+    assert "receipt_uri" in response.json()
+    assert response.json()["receipt_uri"].startswith("local://")
+    
+    # Get the receipt
+    response = client.get(f"/api/expenses/{expense_id}/receipt")
+    assert response.status_code == 200
+    assert response.content == file_content
+    assert response.headers["content-type"] == "image/jpeg"

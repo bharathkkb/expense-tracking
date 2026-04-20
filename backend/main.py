@@ -10,12 +10,16 @@ from google.cloud import storage
 import os
 
 RECEIPT_BUCKET_NAME = os.getenv("RECEIPT_BUCKET_NAME")
-if not RECEIPT_BUCKET_NAME:
-    raise RuntimeError("RECEIPT_BUCKET_NAME environment variable is not set")
+LOCAL_RECEIPT_DIR = "./receipts"
+
+if RECEIPT_BUCKET_NAME:
+    print(f"Receipt storage mode: Cloud Storage (Bucket: {RECEIPT_BUCKET_NAME})")
+else:
+    print(f"Receipt storage mode: Local Storage (Directory: {LOCAL_RECEIPT_DIR})")
 
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
-if not GOOGLE_CLOUD_PROJECT:
-    raise RuntimeError("GOOGLE_CLOUD_PROJECT environment variable is not set")
+if RECEIPT_BUCKET_NAME and not GOOGLE_CLOUD_PROJECT:
+    raise RuntimeError("GOOGLE_CLOUD_PROJECT environment variable is not set when RECEIPT_BUCKET_NAME is set")
 
 # Import from our app module
 from database import init_db, get_db, User, Expense, Report
@@ -211,17 +215,28 @@ async def upload_receipt(id: int, file: UploadFile = File(...), db: Session = De
         raise HTTPException(status_code=404, detail="Expense not found")
         
     file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
-    blob_name = f"receipts/{id}-{uuid.uuid4()}.{file_ext}"
+    filename = f"{id}-{uuid.uuid4()}.{file_ext}"
+    blob_name = f"receipts/{filename}"
     
     try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(RECEIPT_BUCKET_NAME)
-        blob = bucket.blob(blob_name)
-        
         content = await file.read()
-        blob.upload_from_string(content, content_type=file.content_type)
         
-        expense.receipt_uri = f"gs://{RECEIPT_BUCKET_NAME}/{blob_name}"
+        if RECEIPT_BUCKET_NAME:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(RECEIPT_BUCKET_NAME)
+            blob = bucket.blob(blob_name)
+            blob.upload_from_string(content, content_type=file.content_type)
+            expense.receipt_uri = f"gs://{RECEIPT_BUCKET_NAME}/{blob_name}"
+        else:
+            if not os.path.exists(LOCAL_RECEIPT_DIR):
+                os.makedirs(LOCAL_RECEIPT_DIR)
+            
+            local_path = os.path.join(LOCAL_RECEIPT_DIR, filename)
+            with open(local_path, "wb") as f:
+                f.write(content)
+            
+            expense.receipt_uri = f"local://{filename}"
+        
         db.commit()
         db.refresh(expense)
         
@@ -239,17 +254,37 @@ async def get_receipt(id: int, db: Session = Depends(get_db)):
     
     try:
         uri = expense.receipt_uri
-        bucket_name = uri.split('/')[2]
-        blob_name = '/'.join(uri.split('/')[3:])
-        
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        
-        content = blob.download_as_bytes()
         
         from fastapi.responses import Response
-        return Response(content=content, media_type=blob.content_type)
+        
+        if uri.startswith("gs://"):
+            bucket_name = uri.split('/')[2]
+            blob_name = '/'.join(uri.split('/')[3:])
+            
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(bucket_name)
+            blob = bucket.blob(blob_name)
+            
+            content = blob.download_as_bytes()
+            return Response(content=content, media_type=blob.content_type)
+        elif uri.startswith("local://"):
+            filename = uri.split("local://")[1]
+            local_path = os.path.join(LOCAL_RECEIPT_DIR, filename)
+            
+            if not os.path.exists(local_path):
+                raise HTTPException(status_code=404, detail="Receipt file not found")
+                
+            with open(local_path, "rb") as f:
+                content = f.read()
+                
+            import mimetypes
+            media_type, _ = mimetypes.guess_type(local_path)
+            if not media_type:
+                media_type = "application/octet-stream"
+                
+            return Response(content=content, media_type=media_type)
+        else:
+            raise HTTPException(status_code=500, detail="Unknown receipt URI scheme")
     except Exception as e:
         import traceback
         traceback.print_exc()
