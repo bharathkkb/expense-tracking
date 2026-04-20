@@ -217,10 +217,9 @@ function App() {
           {/* Left Side: Hero/Marketing */}
           <div style={{ flex: 1, background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4rem' }}>
             <div style={{ marginBottom: '2rem' }}>
-              <span style={{ fontWeight: '700', fontSize: '2rem', color: '#fff' }}>gSpend</span>
-              <span style={{ fontWeight: '500', fontSize: '2rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
+              <span style={{ fontWeight: '700', fontSize: '2rem', color: '#fff' }}>g<span style={{ color: '#b5a46d' }}>Spend</span></span>
             </div>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', lineHeight: '1.2' }}>Precision Expense Analytics for Enterprise Teams</h1>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', lineHeight: '1.2' }}>Precision Expense Analytics for Teams</h1>
             <p style={{ fontSize: '1.1rem', color: '#94a3b8', maxWidth: '500px', lineHeight: '1.6' }}>
               Streamline your compliance operations and real-time transaction approvals across borders.
             </p>
@@ -248,7 +247,7 @@ function App() {
               </form>
 
               <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                <span>Protected by Enterprise SSO. </span>
+                <span>Protected by SSO. </span>
                 <span style={{ color: 'var(--active-nav)', cursor: 'pointer' }}>Need Help?</span>
               </div>
             </div>
@@ -261,8 +260,8 @@ function App() {
             <div>
               <div style={{ padding: '1rem 1.5rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#ffffff' }}>gSpend</span>
-                  <span style={{ fontWeight: '500', fontSize: '1.1rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
+                    <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#ffffff' }}>g<span style={{ color: '#b5a46d' }}>Spend</span></span>
+
                 </div>
               </div>
               <div className="nav-links">
@@ -297,7 +296,7 @@ function App() {
             {/* Header */}
             <div className="header">
               <div className="logo-area">
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Enterprise Operations Dashboard</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Operations Dashboard</span>
               </div>
               <div className="header-right">
 
@@ -370,7 +369,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Hidden Add Transaction logic bound to Form below drafts instead of toggles to mirror enterprise form styling */}
+                  {/* Hidden Add Transaction logic bound to Form below drafts instead of toggles to mirror form styling */}
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
                     <div style={{ fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Direct Add Entry</div>
                     <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
