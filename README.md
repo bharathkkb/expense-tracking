@@ -5,7 +5,7 @@ gSpend is a modern expense tracking application with a React frontend and a Fast
 ## System Architecture
 
 The application consists of the following components:
--   **Frontend**: React application built with Vite, providing a dynamic and responsive user interface.
+-   **Frontend**: React application built with Vite, providing a dynamic and responsive user interface. Proxy API requests to Backend.
 -   **Backend**: FastAPI application providing RESTful endpoints for user management, expense tracking, and reporting.
 -   **Database**: Uses SQLite by default for local development, with support for Cloud SQL (PostgreSQL) via Unix sockets in production.
 

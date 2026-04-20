@@ -4,3 +4,5 @@ sqlalchemy
 pg8000
 pytest
 httpx
+google-cloud-storage
+python-multipart

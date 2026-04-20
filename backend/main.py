@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+import os
+import uuid
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
+from google.cloud import storage
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
@@ -49,6 +52,7 @@ class ExpenseResponse(BaseModel):
     category: str
     user_id: int
     report_id: Optional[int] = None
+    receipt_url: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class ReportCreate(BaseModel):
@@ -182,6 +186,37 @@ async def update_expense(id: int, request: ExpenseUpdate, db: Session = Depends(
     db.commit()
     db.refresh(expense)
     return expense
+
+@app.post("/api/expenses/{id}/receipt", response_model=ExpenseResponse)
+async def upload_receipt(id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter(Expense.id == id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+        
+    bucket_name = os.getenv("RECEIPT_BUCKET_NAME")
+    if not bucket_name:
+        raise HTTPException(status_code=500, detail="Receipt storage is not configured")
+        
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Generate unique filename
+        file_ext = file.filename.split(".")[-1]
+        blob_name = f"receipts/{id}-{uuid.uuid4()}.{file_ext}"
+        blob = bucket.blob(blob_name)
+        
+        # Read and upload file
+        contents = await file.read()
+        blob.upload_from_string(contents, content_type=file.content_type)
+        
+        expense.receipt_url = f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+        db.commit()
+        db.refresh(expense)
+        return expense
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.delete("/api/expenses/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_expense(id: int, db: Session = Depends(get_db)):

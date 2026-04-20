@@ -52,6 +52,7 @@ class Expense(Base):
     category = Column(String(50), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     report_id = Column(Integer, ForeignKey('reports.id'), nullable=True)
+    receipt_url = Column(String(500), nullable=True)
     
     user = relationship("User", back_populates="expenses")
     report = relationship("Report", back_populates="expenses")
@@ -63,7 +64,8 @@ class Expense(Base):
             'amount': self.amount,
             'date': self.date.isoformat(),
             'category': self.category,
-            'user_id': self.user_id
+            'user_id': self.user_id,
+            'receipt_url': self.receipt_url
         }
 
 engine = create_engine(DATABASE_URL)

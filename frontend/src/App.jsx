@@ -16,6 +16,7 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().substring(0, 10))
   const [user, setUser] = useState(null)
   const [loginUsername, setLoginUsername] = useState('')
+  const [receiptFile, setReceiptFile] = useState(null)
   
   // Simple state for switching views
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -91,10 +92,28 @@ function App() {
     })
       .then(res => res.json())
       .then(newExpense => {
+        if (receiptFile) {
+          const formData = new FormData()
+          formData.append('file', receiptFile)
+          return fetch(`/api/expenses/${newExpense.id}/receipt`, {
+            method: 'POST',
+            body: formData
+          })
+          .then(res => res.json())
+          .then(updatedExpense => {
+             setExpenses([updatedExpense, ...expenses])
+             setTitle('')
+             setAmount('')
+             setCategory('')
+             setReceiptFile(null)
+          })
+        }
+        
         setExpenses([newExpense, ...expenses])
         setTitle('')
         setAmount('')
         setCategory('')
+        setReceiptFile(null)
       })
       .catch(err => console.error('Error adding expense:', err))
   }
@@ -344,14 +363,22 @@ function App() {
                 {/* Left Box - Quick Submit */}
                 <div className="quick-submit-card">
                   <div style={{ fontWeight: '600', fontSize: '1rem' }}>Quick Submit</div>
-                  <div className="drop-area">
+                  <div className="drop-area" onClick={() => document.getElementById('fileUpload').click()} style={{ cursor: 'pointer' }}>
                     <span className="icon">↑</span>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Drag or Drop Receipts for Instant OCR & Matching.
+                      {receiptFile ? `Selected: ${receiptFile.name}` : "Tap to Select Receipt for upload."}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--active-nav)', textDecoration: 'underline' }}>
                       or Capture on Mobile App.
                     </div>
+                    <input 
+                      id="fileUpload" 
+                      type="file" 
+                      style={{ display: 'none' }} 
+                      onChange={(e) => {
+                        if(e.target.files && e.target.files[0]) setReceiptFile(e.target.files[0]);
+                      }} 
+                    />
                   </div>
                   
                   {/* Mock drafts inserted here to keep image fidelity while satisfying initial goal */}
@@ -494,6 +521,11 @@ function App() {
                               <td style={{ fontWeight: '600' }}>${e.amount.toFixed(2)}</td>
                               <td>
                                 <span style={{ color: 'var(--text-muted)', textTransform: 'lowercase' }}>{e.category || 'other'}</span>
+                                {e.receipt_url && (
+                                  <div style={{ marginTop: '4px' }}>
+                                    <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.65rem', background: '#eef2ff', color: '#4f46e5', padding: '0.1rem 0.3rem', borderRadius: '3px', textDecoration: 'none' }}>View Receipt</a>
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
