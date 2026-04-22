@@ -16,7 +16,13 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().substring(0, 10))
   const [user, setUser] = useState(null)
   const [loginUsername, setLoginUsername] = useState('')
-  const [receiptFile, setReceiptFile] = useState(null)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const fileInputRef = useRef(null)
+  const [showModal, setShowModal] = useState(false)
+  const [modalImageUrl, setModalImageUrl] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [isImageLoading, setIsImageLoading] = useState(false)
+  const [uploadingReceiptExpenseIds, setUploadingReceiptExpenseIds] = useState([])
   
   // Simple state for switching views
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -85,6 +91,8 @@ function App() {
     e.preventDefault()
     const payload = { title, amount: parseFloat(amount), category, username: user.username, date }
     
+    setIsUploading(true)
+    
     fetch('/api/expenses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,30 +100,44 @@ function App() {
     })
       .then(res => res.json())
       .then(newExpense => {
-        if (receiptFile) {
-          const formData = new FormData()
-          formData.append('file', receiptFile)
-          return fetch(`/api/expenses/${newExpense.id}/receipt`, {
-            method: 'POST',
-            body: formData
-          })
-          .then(res => res.json())
-          .then(updatedExpense => {
-             setExpenses([updatedExpense, ...expenses])
-             setTitle('')
-             setAmount('')
-             setCategory('')
-             setReceiptFile(null)
-          })
-        }
-        
         setExpenses([newExpense, ...expenses])
         setTitle('')
         setAmount('')
         setCategory('')
-        setReceiptFile(null)
+        
+        if (selectedFile) {
+          const formData = new FormData()
+          formData.append('file', selectedFile)
+          setUploadingReceiptExpenseIds(prev => [...prev, newExpense.id])
+          
+          fetch(`/api/expenses/${newExpense.id}/receipt`, {
+            method: 'POST',
+            body: formData
+          })
+            .then(res => res.json())
+            .then(updatedExpense => {
+              setExpenses(prevExpenses => prevExpenses.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp))
+              setSelectedFile(null)
+            })
+            .catch(err => console.error('Error uploading receipt:', err))
+            .finally(() => {
+              setUploadingReceiptExpenseIds(prev => prev.filter(id => id !== newExpense.id))
+              setIsUploading(false)
+            })
+        } else {
+          setIsUploading(false)
+        }
       })
-      .catch(err => console.error('Error adding expense:', err))
+      .catch(err => {
+        console.error('Error adding expense:', err)
+        setIsUploading(false)
+      })
+  }
+
+  const handleShowReceipt = (expenseId) => {
+    setModalImageUrl(`/api/expenses/${expenseId}/receipt`)
+    setIsImageLoading(true)
+    setShowModal(true)
   }
 
   const handlePrepopulate = (mock) => {
@@ -236,10 +258,9 @@ function App() {
           {/* Left Side: Hero/Marketing */}
           <div style={{ flex: 1, background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4rem' }}>
             <div style={{ marginBottom: '2rem' }}>
-              <span style={{ fontWeight: '700', fontSize: '2rem', color: '#fff' }}>gSpend</span>
-              <span style={{ fontWeight: '500', fontSize: '2rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
+              <span style={{ fontWeight: '700', fontSize: '2rem', color: '#fff' }}>g<span style={{ color: '#b5a46d' }}>Spend</span></span>
             </div>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', lineHeight: '1.2' }}>Precision Expense Analytics for Enterprise Teams</h1>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', lineHeight: '1.2' }}>Precision Expense Analytics for Teams</h1>
             <p style={{ fontSize: '1.1rem', color: '#94a3b8', maxWidth: '500px', lineHeight: '1.6' }}>
               Streamline your compliance operations and real-time transaction approvals across borders.
             </p>
@@ -267,7 +288,7 @@ function App() {
               </form>
 
               <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                <span>Protected by Enterprise SSO. </span>
+                <span>Protected by SSO. </span>
                 <span style={{ color: 'var(--active-nav)', cursor: 'pointer' }}>Need Help?</span>
               </div>
             </div>
@@ -280,8 +301,8 @@ function App() {
             <div>
               <div style={{ padding: '1rem 1.5rem', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#ffffff' }}>gSpend</span>
-                  <span style={{ fontWeight: '500', fontSize: '1.1rem', color: '#b5a46d', marginLeft: '0.25rem' }}>enterprise</span>
+                    <span style={{ fontWeight: '700', fontSize: '1.1rem', color: '#ffffff' }}>g<span style={{ color: '#b5a46d' }}>Spend</span></span>
+
                 </div>
               </div>
               <div className="nav-links">
@@ -316,7 +337,7 @@ function App() {
             {/* Header */}
             <div className="header">
               <div className="logo-area">
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Enterprise Operations Dashboard</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Operations Dashboard</span>
               </div>
               <div className="header-right">
 
@@ -363,22 +384,31 @@ function App() {
                 {/* Left Box - Quick Submit */}
                 <div className="quick-submit-card">
                   <div style={{ fontWeight: '600', fontSize: '1rem' }}>Quick Submit</div>
-                  <div className="drop-area" onClick={() => document.getElementById('fileUpload').click()} style={{ cursor: 'pointer' }}>
+                  <div 
+                    className="drop-area" 
+                    onClick={() => fileInputRef.current.click()} 
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        setSelectedFile(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: 'none' }}
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                    />
                     <span className="icon">↑</span>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {receiptFile ? `Selected: ${receiptFile.name}` : "Tap to Select Receipt for upload."}
+                      {selectedFile ? `Selected: ${selectedFile.name}` : 'Click to upload or Drag & Drop Receipts'}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--active-nav)', textDecoration: 'underline' }}>
                       or Capture on Mobile App.
                     </div>
-                    <input 
-                      id="fileUpload" 
-                      type="file" 
-                      style={{ display: 'none' }} 
-                      onChange={(e) => {
-                        if(e.target.files && e.target.files[0]) setReceiptFile(e.target.files[0]);
-                      }} 
-                    />
                   </div>
                   
                   {/* Mock drafts inserted here to keep image fidelity while satisfying initial goal */}
@@ -397,7 +427,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Hidden Add Transaction logic bound to Form below drafts instead of toggles to mirror enterprise form styling */}
+                  {/* Hidden Add Transaction logic bound to Form below drafts instead of toggles to mirror form styling */}
                   <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '1rem' }}>
                     <div style={{ fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Direct Add Entry</div>
                     <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -421,7 +451,9 @@ function App() {
                           <option value="lodging">Lodging</option>
                         </select>
                       </div>
-                      <button type="submit" className="btn-submit" style={{ width: '100%', textTransform: 'none', fontSize: '0.85rem', padding: '0.625rem', borderRadius: '6px' }}>Submit Line Item</button>
+                      <button type="submit" className="btn-submit" style={{ width: '100%', textTransform: 'none', fontSize: '0.85rem', padding: '0.625rem', borderRadius: '6px' }} disabled={isUploading}>
+                        {isUploading ? 'Uploading...' : 'Submit Line Item'}
+                      </button>
                     </form>
                   </div>
                 </div>
@@ -478,6 +510,7 @@ function App() {
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('title')}>Merchant {sortColumn === 'title' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('amount')}>Amount {sortColumn === 'amount' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                         <th style={{ cursor: 'pointer' }} onClick={() => handleSort('category')}>Category {sortColumn === 'category' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
+                        <th>Receipt</th>
                         <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('compliance')}>Policy Compliance {sortColumn === 'compliance' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}</th>
                       </tr>
                     </thead>
@@ -525,6 +558,15 @@ function App() {
                                   <div style={{ marginTop: '4px' }}>
                                     <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.65rem', background: '#eef2ff', color: '#4f46e5', padding: '0.1rem 0.3rem', borderRadius: '3px', textDecoration: 'none' }}>View Receipt</a>
                                   </div>
+                                )}
+                              </td>
+                              <td>
+                                {e.receipt_uri ? (
+                                  <button onClick={() => handleShowReceipt(e.id)} style={{ color: 'var(--active-nav)', fontSize: '0.85rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>View</button>
+                                ) : uploadingReceiptExpenseIds.includes(e.id) ? (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>⌛ Uploading...</span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
                                 )}
                               </td>
                               <td>
@@ -682,6 +724,22 @@ function App() {
                   <button onClick={() => setIsProfileModalOpen(false)} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
                   <button onClick={handleUpdateProfile} style={{ padding: '0.4rem 0.75rem', borderRadius: '4px', border: 'none', background: 'var(--active-nav)', color: 'white', cursor: 'pointer', fontSize: '0.85rem' }}>Save Changes</button>
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {showModal && (
+            <div className="receipt-modal-overlay" onClick={() => setShowModal(false)}>
+              <div className="receipt-modal-content" onClick={e => e.stopPropagation()}>
+                <button className="receipt-modal-close" onClick={() => setShowModal(false)}>&times;</button>
+                {isImageLoading && <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading image...</div>}
+                <img 
+                  src={modalImageUrl} 
+                  alt="Receipt" 
+                  className="receipt-modal-image" 
+                  onLoad={() => setIsImageLoading(false)}
+                  style={{ display: isImageLoading ? 'none' : 'block' }}
+                />
               </div>
             </div>
           )}

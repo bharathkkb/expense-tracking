@@ -3,6 +3,7 @@ server {
     server_name _;
     error_log /dev/stderr debug;
     access_log /dev/stdout main;
+    client_max_body_size 10M;
 
     root /usr/share/nginx/html;
     index index.html index.htm;
